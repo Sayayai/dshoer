@@ -51,8 +51,10 @@ touch /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 
 if [ -n "${SSH_PUBLIC_KEY}" ]; then
-    if ! grep -qF "${SSH_PUBLIC_KEY}" /root/.ssh/authorized_keys 2>/dev/null; then
-        echo "${SSH_PUBLIC_KEY}" >> /root/.ssh/authorized_keys
+    # 自动去除首尾可能由 docker-compose 或 .env 传入的多余引号 (双引号或单引号)
+    CLEAN_KEY=$(echo "${SSH_PUBLIC_KEY}" | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//')
+    if [ -n "${CLEAN_KEY}" ] && ! grep -qF "${CLEAN_KEY}" /root/.ssh/authorized_keys 2>/dev/null; then
+        echo "${CLEAN_KEY}" >> /root/.ssh/authorized_keys
     fi
     echo "[Entrypoint] SSH public key verified for root login."
 else
