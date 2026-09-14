@@ -1,18 +1,12 @@
 services:
   dev-environment:
-    # 直接拉取 GitHub Actions 云编译的预构建镜像 (支持 x86_64 与 ARM64 双架构)
     image: ghcr.io/sayayai/dshoer:latest
-    # 如需本地离线二次开发或自行构建，可解开以下 build 注释:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     container_name: full-dev-env
     restart: unless-stopped
     ports:
       # SSH 远程开发连接端口
       - "52333:2222"
     environment:
-      # 必填: 本地电脑公钥 (用于 VS Code 免密直连，容器已彻底禁用密码登录)
       - SSH_PUBLIC_KEY=""
     volumes:
       # 宿主机代码目录挂载到容器内 /workspace
@@ -21,12 +15,11 @@ services:
       - ./dsh:/root/.dsh
       # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
       - dev_cache:/cache
-    # 容器计算与内存资源限制 (针对 2C12G 服务器深度优化)
     deploy:
       resources:
         limits:
-          cpus: "1.8"       # 2核CPU分配 1.8 核给容器，留 0.2 核给宿主机守护进程
-          memory: "10G"     # 12G内存分配 10G 给容器，留 2G 给宿主机，防止 OOM
+          cpus: "1.6"
+          memory: "8G"   
         reservations:
           memory: "2G"
     # 默认启动 SSH 服务 + DSH Web 服务
