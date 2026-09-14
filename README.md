@@ -43,30 +43,6 @@
 - **Rust 环境**：直接从官方 `rust:bookworm` 提取最新稳定版 `rustup`、`rustc`、`cargo`。
 - **Node.js 环境**：直接从官方 `node:24-bookworm-slim` 提取完整 Node.js 24 LTS 环境，支持 `npm`、`pnpm`、`yarn`。
 - **Python 环境**：直接从 Astral 官方镜像提取 `uv` / `uvx`，秒级安装独立 Python 3.13 与 `pip`、`ipython`。
-- **跨架构云编译零卡顿**：全官方镜像层拼接，避开了 QEMU CPU 模拟编译的巨大开销。
-
----
-
-## GitHub Actions 云端镜像与自动编译
-
-仓库已配置 GitHub Actions 持续集成流水线，推送至仓库后将自动多架构编译并发布到 GitHub Container Registry (GHCR)：
-
-- **GitHub 仓库**: [https://github.com/Sayayai/dshoer](https://github.com/Sayayai/dshoer)
-- **预构建镜像地址**: `ghcr.io/sayayai/dshoer:latest`
-- **支持架构**: `linux/amd64` (标准服务器/PC) 与 `linux/arm64` (Apple Silicon Mac / ARM 服务器)
-
-### 首次推送仓库步骤
-```bash
-git init
-git add .
-git commit -m "feat: complete remote dev environment with dsh"
-git branch -M main
-git remote add origin https://github.com/Sayayai/dshoer.git
-git push -u origin main
-```
-推送后，GitHub Actions 将自动执行编译与发布。
-
----
 
 ## 持久化目录与存储分流
 
