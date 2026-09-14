@@ -1,0 +1,32 @@
+services:
+  dev-environment:
+    # 直接拉取 GitHub Actions 云编译的预构建镜像 (支持 x86_64 与 ARM64 双架构)
+    image: ghcr.io/sayayai/dshoer:latest
+    # 如需本地离线二次开发或自行构建，可解开以下 build 注释:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    container_name: full-dev-env
+    restart: unless-stopped
+    ports:
+      # 仅暴露 SSH 端口 (DSH WebUI 将通过 VS Code SSH 隧道自动映射，无需公网暴露)
+      - "${SSH_PORT:-2222}:2222"
+    environment:
+      # SSH 连接密码 (默认为 dev123456，可在 .env 中修改)
+      - ROOT_PASSWORD=${ROOT_PASSWORD:-dev123456}
+      # 可选: 注入本地电脑的 ~/.ssh/id_rsa.pub 公钥，实现免密直连
+      - SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:-}
+    volumes:
+      # 宿主机代码目录挂载到容器内 /workspace
+      - ./workspace:/workspace
+      # DSH 配置与应用数据目录挂载到宿主机 ./dsh (方便在宿主机直接查看与修改配置)
+      - ./dsh:/root/.dsh
+      # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
+      - dev_cache:/cache
+    # 默认启动 SSH 服务 + DSH Web 服务
+    command: ["all"]
+
+volumes:
+  # 持久化缓存命名卷
+  dev_cache:
+    name: dev_full_cache

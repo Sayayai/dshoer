@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env
+node_modules
+workspace
+dsh
+cache
+dist
+build
+*.log
