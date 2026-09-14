@@ -11,7 +11,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Docker 镜像仓库名必须全部小写 (Docker 要求合法 reference 格式不得包含大写字母)
+  IMAGE_NAME: sayayai/dshoer
 
 jobs:
   # ============================================================================
@@ -35,6 +36,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write # 必须赋予 actions 权限，以便将云编译层缓存写入 GitHub Actions 缓存中心
 
     steps:
       - name: Checkout repository
