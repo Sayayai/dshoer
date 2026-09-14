@@ -9,26 +9,26 @@ services:
     container_name: full-dev-env
     restart: unless-stopped
     ports:
-      # 仅暴露 SSH 端口 (DSH WebUI 将通过 VS Code SSH 隧道自动映射，无需公网暴露)
-      - "${SSH_PORT:-2222}:2222"
+      # SSH 远程开发连接端口
+      - "52333:2222"
     environment:
-      # 强制采用本地电脑 ~/.ssh/id_rsa.pub (或 id_ed25519.pub) 公钥免密直连，已彻底禁用密码登录
-      - SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}
+      # 必填: 本地电脑公钥 (用于 VS Code 免密直连，容器已彻底禁用密码登录)
+      - SSH_PUBLIC_KEY=""
     volumes:
       # 宿主机代码目录挂载到容器内 /workspace
       - ./workspace:/workspace
-      # DSH 配置与应用数据目录挂载到宿主机 ./dsh (方便在宿主机直接查看与修改配置)
+      # DSH 配置与应用数据目录挂载到宿主机 ./dsh (可在宿主机直接改配置与 API Key)
       - ./dsh:/root/.dsh
       # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
       - dev_cache:/cache
-    # 容器计算与内存资源限制 (限制在 70% CPU 与 7G 内存)
+    # 容器计算与内存资源限制 (针对 2C12G 服务器深度优化)
     deploy:
       resources:
         limits:
-          cpus: "${CPU_LIMIT:-2.8}"
-          memory: "${MEM_LIMIT:-7G}"
+          cpus: "1.8"       # 2核CPU分配 1.8 核给容器，留 0.2 核给宿主机守护进程
+          memory: "10G"     # 12G内存分配 10G 给容器，留 2G 给宿主机，防止 OOM
         reservations:
-          memory: "${MEM_RESERVATION:-2G}"
+          memory: "2G"
     # 默认启动 SSH 服务 + DSH Web 服务
     command: ["all"]
 

@@ -82,8 +82,8 @@ docker compose up -d
 在本地桌面 VS Code 安装官方插件 **Remote - SSH**。编辑本地 `~/.ssh/config` 文件并添加：
 ```ssh
 Host dshoer-dev
-    HostName 127.0.0.1
-    Port 2222
+    HostName <您的服务器IP>
+    Port 52333
     User root
 ```
 在 VS Code 中点击左下角 `><` 打开远程窗口，选择 `Connect to Host...` -> `dshoer-dev`，即可免密直接秒级连入容器！

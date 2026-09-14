@@ -104,7 +104,7 @@ case "$1" in
         /usr/sbin/sshd
 
         echo "[Entrypoint] Starting DeepSeek Harness (dsh web) on port 3080..."
-        dsh web --no-open > /tmp/dsh-web.log 2>&1 &
+        dsh web --host 0.0.0.0 --port 3080 --no-open > /tmp/dsh-web.log 2>&1 &
         DSH_PID=$!
 
         echo "[Entrypoint] All background services started."
@@ -121,8 +121,8 @@ case "$1" in
         ;;
 
     "dsh")
-        echo "[Entrypoint] Starting DeepSeek Harness only..."
-        exec dsh web --no-open
+        echo "[Entrypoint] Starting DeepSeek Harness only on port 3080..."
+        exec dsh web --host 0.0.0.0 --port 3080 --no-open
         ;;
 
     *)
