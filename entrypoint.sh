@@ -46,21 +46,41 @@ else
 fi
 chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
 
-# 配置公钥或密码
+# 注入公钥并彻底关闭密码认证 (强制纯密钥安全模式)
+touch /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+
 if [ -n "${SSH_PUBLIC_KEY}" ]; then
-    echo "${SSH_PUBLIC_KEY}" >> /root/.ssh/authorized_keys
-    chmod 600 /root/.ssh/authorized_keys
-    echo "[Entrypoint] Injected SSH public key for root login."
+    if ! grep -qF "${SSH_PUBLIC_KEY}" /root/.ssh/authorized_keys 2>/dev/null; then
+        echo "${SSH_PUBLIC_KEY}" >> /root/.ssh/authorized_keys
+    fi
+    echo "[Entrypoint] SSH public key verified for root login."
+else
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "  [WARNING] SSH_PUBLIC_KEY is not set in .env!"
+    echo "  Password authentication is DISABLED. You will not be able to connect"
+    echo "  via SSH until you set SSH_PUBLIC_KEY in .env and restart."
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 fi
 
-# 默认设置密码 (默认为 dev123456)
-ROOT_PASSWORD="${ROOT_PASSWORD:-dev123456}"
-echo "root:${ROOT_PASSWORD}" | chpasswd
+# 锁定 root 密码 (彻底清除/锁定本地密码，不可用密码登入)
+passwd -l root 2>/dev/null || true
 
-# 设置 sshd 监听端口 2222，允许 root 登录
+# 配置 OpenSSH 安全策略: 端口 2222，仅允许 root 密钥登录，彻底禁用密码与键盘交互认证
+mkdir -p /etc/ssh/sshd_config.d
+cat << 'EOF' > /etc/ssh/sshd_config.d/99-key-only.conf
+Port 2222
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PubkeyAuthentication yes
+KbdInteractiveAuthentication no
+EOF
+
 sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config 2>/dev/null || true
-sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i 's/.*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i 's/.*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i 's/.*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i 's/.*KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config 2>/dev/null || true
 
 echo "=================================================================="
 echo "       Remote SSH Dev Environment is Ready!                       "

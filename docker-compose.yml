@@ -12,10 +12,8 @@ services:
       # 仅暴露 SSH 端口 (DSH WebUI 将通过 VS Code SSH 隧道自动映射，无需公网暴露)
       - "${SSH_PORT:-2222}:2222"
     environment:
-      # SSH 连接密码 (默认为 dev123456，可在 .env 中修改)
-      - ROOT_PASSWORD=${ROOT_PASSWORD:-dev123456}
-      # 可选: 注入本地电脑的 ~/.ssh/id_rsa.pub 公钥，实现免密直连
-      - SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY:-}
+      # 强制采用本地电脑 ~/.ssh/id_rsa.pub (或 id_ed25519.pub) 公钥免密直连，已彻底禁用密码登录
+      - SSH_PUBLIC_KEY=${SSH_PUBLIC_KEY}
     volumes:
       # 宿主机代码目录挂载到容器内 /workspace
       - ./workspace:/workspace
@@ -23,6 +21,16 @@ services:
       - ./dsh:/root/.dsh
       # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
       - dev_cache:/cache
+      # 实时挂载入口脚本 (保证纯密钥与安全认证策略即时生效，无需重新编译镜像)
+      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
+    # 容器计算与内存资源限制 (限制在 70% CPU 与 7G 内存)
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-2.8}"
+          memory: "${MEM_LIMIT:-7G}"
+        reservations:
+          memory: "${MEM_RESERVATION:-2G}"
     # 默认启动 SSH 服务 + DSH Web 服务
     command: ["all"]
 

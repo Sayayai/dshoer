@@ -56,12 +56,14 @@
 
 ## 快速使用指引
 
-### 1. 配置环境变量 (可选)
-复制环境变量模板（默认 SSH 端口为 `2222`，默认密码为 `dev123456`）：
+### 1. 配置环境变量
+复制环境变量模板并填入您的本地公钥（环境已彻底禁用弱密码，强制采用纯密钥安全直连）：
 ```bash
 cp .env.example .env
 ```
-如需免密直连，可将本地电脑的公钥内容（`~/.ssh/id_rsa.pub`）填入 `.env` 中的 `SSH_PUBLIC_KEY` 变量。
+用编辑器打开 `.env`：
+- **必填**：将本地电脑的公钥（如 `~/.ssh/id_rsa.pub` 或 `~/.ssh/id_ed25519.pub`）内容复制到 `SSH_PUBLIC_KEY` 中。
+- **可选**：按需调整 CPU 限制（`CPU_LIMIT`）与内存上限（`MEM_LIMIT`）。
 
 ### 2. 一键拉取并启动
 由于已接入 GHCR 云编译镜像，本地无需等待耗时的编译，直接拉取即可秒级启动：
@@ -84,7 +86,7 @@ Host dshoer-dev
     Port 2222
     User root
 ```
-在 VS Code 中点击左下角 `><` 打开远程窗口，选择 `Connect to Host...` -> `dshoer-dev`，输入密码（默认 `dev123456`）即可秒级连入容器！
+在 VS Code 中点击左下角 `><` 打开远程窗口，选择 `Connect to Host...` -> `dshoer-dev`，即可免密直接秒级连入容器！
 
 #### 步骤二：使用 DeepSeek Harness (dsh web)
 - 连接 Remote-SSH 后，VS Code 会**自动侦测到容器内的 3080 端口并安全映射至本地**。
