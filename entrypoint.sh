@@ -103,15 +103,6 @@ case "$1" in
         echo "[Entrypoint] Starting SSH Daemon on port 2222..."
         /usr/sbin/sshd
 
-        # 确保 VS Code Server 的 cli server 软链就绪
-        for d in /root/.vscode-server/bin/*; do
-            if [ -d "$d" ]; then
-                c=$(basename "$d")
-                mkdir -p "/root/.vscode-server/cli/servers/Stable-${c}"
-                ln -sf "$d" "/root/.vscode-server/cli/servers/Stable-${c}/server"
-            fi
-        done
-
         echo "[Entrypoint] Starting DeepSeek Harness (dsh web) on port 3080..."
         dsh web --no-open > /tmp/dsh-web.log 2>&1 &
         DSH_PID=$!

@@ -108,25 +108,7 @@ RUN npm install -g @deepseek-ai/dsh && \
     mkdir -p /etc/dsh.template && \
     cp -r /root/.dsh/. /etc/dsh.template/
 
-# 8. 预置 VS Code Server (自动动态获取微软官方最新 Stable 版本并下载，避免现场卡顿)
-ARG VSCODE_COMMIT="latest"
-RUN ARCH=$(dpkg --print-architecture) && \
-    case "${ARCH}" in \
-        amd64) SERVER_ARCH="x64" ;; \
-        arm64) SERVER_ARCH="arm64" ;; \
-        *) SERVER_ARCH="x64" ;; \
-    esac && \
-    if [ "${VSCODE_COMMIT}" = "latest" ]; then \
-        VSCODE_COMMIT=$(curl -fsSL "https://update.code.visualstudio.com/api/commits/stable/server-linux-${SERVER_ARCH}" | jq -r '.[0]'); \
-    fi && \
-    echo "Pre-installing VS Code Server for commit: ${VSCODE_COMMIT} (${SERVER_ARCH})..." && \
-    mkdir -p /root/.vscode-server/bin/${VSCODE_COMMIT} && \
-    curl -fsSL "https://update.code.visualstudio.com/commit:${VSCODE_COMMIT}/server-linux-${SERVER_ARCH}/stable" | \
-    tar -xz --strip-components=1 -C /root/.vscode-server/bin/${VSCODE_COMMIT} && \
-    mkdir -p /root/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT} && \
-    ln -sf /root/.vscode-server/bin/${VSCODE_COMMIT} /root/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT}/server
-
-# 9. 创建顶层工作区目录、持久化缓存目录结构及 SSH 目录
+# 8. 创建顶层工作区目录、持久化缓存目录结构及 SSH 目录
 RUN mkdir -p /workspace \
     /cache/go/build \
     /cache/go/pkg/mod \
@@ -142,7 +124,7 @@ RUN mkdir -p /workspace \
 # 统一配置 npm 全局缓存路径为 /cache/npm
 RUN npm config set cache /cache/npm --global
 
-# 10. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
+# 9. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
