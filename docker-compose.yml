@@ -21,8 +21,6 @@ services:
       - ./dsh:/root/.dsh
       # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
       - dev_cache:/cache
-      # 实时挂载入口脚本 (保证纯密钥与安全认证策略即时生效，无需重新编译镜像)
-      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh:ro
     # 容器计算与内存资源限制 (限制在 70% CPU 与 7G 内存)
     deploy:
       resources:
