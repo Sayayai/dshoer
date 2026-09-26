@@ -4,29 +4,23 @@ services:
     container_name: full-dev-env
     restart: unless-stopped
     ports:
-      # SSH 远程开发连接端口
       - "52333:2222"
     environment:
-      # 本地 VS Code 客户端 SSH 公钥 (填入 ~/.ssh/id_ed25519.pub 或 id_rsa.pub 的完整内容)
+      # SSH 免密公钥
       SSH_PUBLIC_KEY: ""
+      # Git 提交身份配置 (可选，启动容器时自动配置)
+      GIT_USER_NAME: ""
+      GIT_USER_EMAIL: ""
     volumes:
-      # 宿主机代码目录挂载到容器内 /workspace
-      - ./workspace:/workspace
-      # DSH 配置与应用数据目录挂载到宿主机 ./dsh (可在宿主机直接改配置与 API Key)
-      - ./dsh:/root/.dsh
-      # 统一持久化多语言编译与包管理器缓存卷 (Go, Cargo, NPM, PIP, UV, SSH Host Keys)
-      - dev_cache:/cache
+      - ./workspace:/root/workspace
+      - ./fun/dsh:/root/.dsh
+      - ./fun/dev_cache:/cache
     deploy:
       resources:
         limits:
           cpus: "1.6"
-          memory: "8G"   
+          memory: "6G"   
         reservations:
           memory: "2G"
     # 默认启动 SSH 服务 + DSH Web 服务
     command: ["all"]
-
-volumes:
-  # 持久化缓存命名卷
-  dev_cache:
-    name: dev_full_cache

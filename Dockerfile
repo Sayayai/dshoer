@@ -13,19 +13,22 @@ FROM rust:bookworm AS rust-source
 # 阶段 3: 提取官方 Node.js 24 LTS
 FROM node:24-bookworm-slim AS node-source
 
+# 阶段 4: 提取官方 Eclipse Temurin OpenJDK 25
+FROM eclipse-temurin:25-jdk AS java-source
+
 # ------------------------------------------------------------------------------
 # 主阶段: 最终运行镜像
 # ------------------------------------------------------------------------------
 FROM debian:bookworm-slim
 
 LABEL maintainer="developer"
-LABEL description="Lean Multi-arch Remote Dev Container with Go, Rust, Node, Python, SSH, and DeepSeek Harness"
+LABEL description="Lean Multi-arch Remote Dev Container with Go, Rust, Node, Python, Java 25, SSH, and DeepSeek Harness"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# 1. 基础系统与开发工具链 (包含 OpenSSH-Server，供本地 VS Code 客户端直连)
+# 1. 基础系统与开发工具链 (包含 OpenSSH-Server 与 GitHub CLI)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -33,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     git \
     git-lfs \
+    gh \
     build-essential \
     pkg-config \
     libssl-dev \
@@ -53,8 +57,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. 统一全局环境变量与多语言缓存路径
-ENV WORKSPACE=/workspace \
+ENV WORKSPACE=/root/workspace \
     CACHE_DIR=/cache \
+    JAVA_HOME=/opt/java/openjdk \
+    GRADLE_USER_HOME=/cache/gradle \
     GOROOT=/usr/local/go \
     GOPATH=/cache/go \
     GOCACHE=/cache/go/build \
@@ -67,7 +73,7 @@ ENV WORKSPACE=/workspace \
     PNPM_HOME=/cache/pnpm \
     DSH_HOME=/root/.dsh
 
-ENV PATH=/workspace/.bin:/usr/local/cargo/bin:/cache/cargo/bin:/usr/local/go/bin:/cache/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+ENV PATH=/root/workspace/.bin:$JAVA_HOME/bin:/usr/local/cargo/bin:/cache/cargo/bin:/usr/local/go/bin:/cache/go/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 
 # 3. [官方镜像拼接] 注入 Go 运行时
 COPY --from=go-source /usr/local/go /usr/local/go
@@ -99,17 +105,23 @@ RUN uv python install 3.13 && \
     if [ -f "${PYTHON_DIR}/pip3" ]; then ln -sf "${PYTHON_DIR}/pip3" /usr/local/bin/pip3; fi && \
     if [ -f "${PYTHON_DIR}/ipython" ]; then ln -sf "${PYTHON_DIR}/ipython" /usr/local/bin/ipython; fi
 
-# 7. 安装 DeepSeek Harness (dsh) CLI 及其官方实验团队插件
+# 7. [官方镜像拼接] 注入 OpenJDK 25 (专用于 MC MOD 编译与运行)
+COPY --from=java-source /opt/java/openjdk /opt/java/openjdk
+
+# 8. 安装 DeepSeek Harness (dsh) CLI、配置基础模版并注入自主升级工具
 ENV DSH_HOME=/root/.dsh
-RUN npm install -g @deepseek-ai/dsh && \
+RUN npm install -g @deepseek-ai/dsh@latest && \
     mkdir -p /root/.dsh && \
-    dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-profile && \
-    dsh plugin --profile web add @deepseek-ai/dsh-experimental-agent-team-web-profile && \
     mkdir -p /etc/dsh.template && \
     cp -r /root/.dsh/. /etc/dsh.template/
 
-# 8. 创建顶层工作区目录、持久化缓存目录结构及 SSH 目录
-RUN mkdir -p /workspace \
+COPY update-dsh.sh /usr/local/bin/update-dsh
+RUN sed -i 's/\r$//' /usr/local/bin/update-dsh && \
+    chmod +x /usr/local/bin/update-dsh && \
+    ln -sf /usr/local/bin/update-dsh /usr/local/bin/dsh-update
+
+# 9. 创建工作区目录、持久化缓存目录结构及 SSH 目录
+RUN mkdir -p /root/workspace \
     /cache/go/build \
     /cache/go/pkg/mod \
     /cache/cargo/registry \
@@ -119,16 +131,21 @@ RUN mkdir -p /workspace \
     /cache/pnpm \
     /cache/pip \
     /cache/uv \
+    /cache/gradle \
     /var/run/sshd
 
 # 统一配置 npm 全局缓存路径为 /cache/npm
 RUN npm config set cache /cache/npm --global
 
-# 9. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
+# 配置交互终端默认进入 /root/workspace
+RUN echo 'if [ "$PWD" = "/root" ] && [ -d "/root/workspace" ]; then cd /root/workspace; fi' >> /etc/bash.bashrc && \
+    echo 'if [ "$PWD" = "/root" ] && [ -d "/root/workspace" ]; then cd /root/workspace; fi' >> /etc/zsh/zshrc 2>/dev/null || true
+
+# 10. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
-WORKDIR /workspace
+WORKDIR /root/workspace
 
 # 暴露端口: 仅暴露 SSH 服务端口 (DSH WebUI 通过 VS Code SSH 隧道自动映射)
 EXPOSE 2222
