@@ -7,7 +7,7 @@
 ├── Dockerfile                  # 多语言环境构建文件 (Debian 12 + 官方多阶段拼接)
 ├── docker-compose.yml          # 一键编排启动文件
 ├── entrypoint.sh               # 容器初始化入口脚本
-├── update-dsh.sh               # 容器内 DSH 一键升级与重载工具
+├── updsh.sh                    # 容器内 DSH 一键升级与重载工具
 ├── .env.example                # 环境变量配置模板
 └── .github/workflows/
     └── docker-build.yml        # GitHub Actions 云端双架构自动构建流水线
@@ -37,9 +37,9 @@ docker compose up -d
 docker exec -it full-dev-env bash
 
 # 容器内一键更新 DSH (平滑重载，无需重启整个 Docker)
-update-dsh              # 升级至最新稳定版 (latest)
-update-dsh next         # 升级至最新预览分支 (next)
-update-dsh 0.1.7-rc.2   # 升级至指定版本号
+updsh                    # 升级至最新稳定版 (latest)
+updsh next               # 升级至最新预览分支 (next)
+updsh 0.1.7-rc.2         # 升级至指定版本号
 
 # 登录 GitHub (免密 Push 代码)
 gh auth login

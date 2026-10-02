@@ -7,12 +7,9 @@ set -e
 
 # 1. 初始化工作区及各语言缓存目录结构
 mkdir -p /root/workspace \
-         /cache/go/build \
-         /cache/go/pkg/mod \
          /cache/cargo/registry \
          /cache/cargo/git \
          /cache/npm \
-         /cache/yarn \
          /cache/pnpm \
          /cache/pip \
          /cache/uv \
@@ -102,7 +99,6 @@ echo "=================================================================="
 echo "       Remote SSH Dev Environment is Ready!                       "
 echo "=================================================================="
 echo "  - Java Version:    $(java -version 2>&1 | head -n 1 || echo 'Not found')"
-echo "  - Go Version:      $(go version 2>/dev/null || echo 'Not found')"
 echo "  - Rust Version:    $(rustc --version 2>/dev/null || echo 'Not found')"
 echo "  - Node Version:    $(node -v 2>/dev/null || echo 'Not found')"
 echo "  - Python Version:  $(python3 --version 2>/dev/null || echo 'Not found')"
@@ -128,7 +124,7 @@ case "$1" in
 
         echo "[Entrypoint] All background services started."
         echo "  -> Ready for VS Code Remote-SSH connect: ssh root@<host> -p 2222"
-        echo "  -> To update DSH in-container, simply run: update-dsh"
+        echo "  -> To update DSH in-container, simply run: updsh"
         echo "  -> To login GitHub, run: gh auth login"
         echo "  -> DSH Web log streaming:"
 
