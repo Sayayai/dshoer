@@ -32,7 +32,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# 1. 基础系统与开发工具链 (包含 OpenSSH-Server 与 GitHub CLI)
+# 1. 基础系统与开发工具链 (包含 OpenSSH-Server, GitHub CLI 以及 MC 无头图形底库)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -50,6 +50,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     openssh-server \
     openssh-client \
+    xvfb \
+    libgl1-mesa-dri \
+    libgl1 \
+    libglfw3 \
+    libopenal1 \
+    libasound2 \
+    libxcursor1 \
+    libxrandr2 \
+    libxinerama1 \
+    libxi6 \
+    libxext6 \
+    fontconfig \
+    fonts-dejavu-core \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
