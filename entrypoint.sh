@@ -13,7 +13,39 @@ mkdir -p /root/workspace \
          /cache/pnpm \
          /cache/pip \
          /cache/uv \
-         /cache/gradle
+         /cache/gradle \
+         /cache/go/bin \
+         /cache/go/pkg/mod \
+         /cache/go-build
+
+# 1.1 兜底修复: 确保全局环境变量注入文件就绪
+#     (老版本镜像升级上来时 /etc/profile.d/30-dev-env.sh 可能缺失, 会导致
+#      SSH 登录会话中 cargo / java / go 等命令 command not found)
+if [ ! -r /etc/profile.d/30-dev-env.sh ]; then
+    echo "[Entrypoint] [WARN] /etc/profile.d/30-dev-env.sh missing, recreating minimal fallback..."
+    cat << 'EOF' > /etc/profile.d/30-dev-env.sh
+# 兜底注入 (幂等, 完整版本见仓库 dev-env.sh)
+if [ -z "${DEV_ENV_LOADED:-}" ]; then
+    DEV_ENV_LOADED=1; export DEV_ENV_LOADED
+    JAVA_HOME=/opt/java/openjdk;   export JAVA_HOME
+    GOROOT=/usr/local/go;          export GOROOT
+    GOPATH=/cache/go;              export GOPATH
+    GOMODCACHE=/cache/go/pkg/mod;  export GOMODCACHE
+    GOCACHE=/cache/go-build;       export GOCACHE
+    CARGO_HOME=/usr/local/cargo;   export CARGO_HOME
+    RUSTUP_HOME=/usr/local/rustup; export RUSTUP_HOME
+    PATH="/root/workspace/.bin:${GOPATH}/bin:${GOROOT}/bin:${JAVA_HOME}/bin:${CARGO_HOME}/bin:${PATH}"
+    export PATH
+fi
+EOF
+    chmod 0644 /etc/profile.d/30-dev-env.sh
+fi
+if ! grep -qF '/etc/profile.d/30-dev-env.sh' /etc/bash.bashrc 2>/dev/null; then
+    echo '[ -r /etc/profile.d/30-dev-env.sh ] && . /etc/profile.d/30-dev-env.sh' >> /etc/bash.bashrc
+fi
+if ! grep -qF '/etc/profile.d/30-dev-env.sh' /root/.bashrc 2>/dev/null; then
+    echo '[ -r /etc/profile.d/30-dev-env.sh ] && . /etc/profile.d/30-dev-env.sh' >> /root/.bashrc
+fi
 
 # 2. 映射 Cargo 与 Gradle 缓存至持久化 /cache 目录 (MC MOD 构建利器)
 if [ ! -L /usr/local/cargo/registry ]; then
@@ -98,8 +130,9 @@ sed -i 's/.*KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' /et
 echo "=================================================================="
 echo "       Remote SSH Dev Environment is Ready!                       "
 echo "=================================================================="
-echo "  - Java Version:    $(java -version 2>&1 | head -n 1 || echo 'Not found')"
 echo "  - Rust Version:    $(rustc --version 2>/dev/null || echo 'Not found')"
+echo "  - Go Version:      $(go version 2>/dev/null || echo 'Not found')"
+echo "  - Java Version:    $(java -version 2>&1 | head -n 1 || echo 'Not found')"
 echo "  - Node Version:    $(node -v 2>/dev/null || echo 'Not found')"
 echo "  - Python Version:  $(python3 --version 2>/dev/null || echo 'Not found')"
 echo "  - DSH Version:     $(dsh --version 2>/dev/null || echo 'Installed')"
@@ -109,7 +142,23 @@ echo "  - SSH Port:        2222 (for local desktop VS Code Remote-SSH)"
 echo "  - DSH Web:         3080 (http://localhost:3080)"
 echo "  - DSH Config/Data: /root/.dsh (host: ./fun/dsh)"
 echo "  - Workspace:       /root/workspace (host: ./workspace)"
-echo "  - Cache Root:      /cache"
+echo "  - Cache Root:      /cache (cargo / go / gradle / npm / pip / uv)"
+echo "=================================================================="
+
+# 5.1 环境自检: 模拟 SSH 登录 shell (/etc/profile + profile.d) 校验各语言工具
+#     这是 "cargo / java / go 直接输入却 command not found" 问题的回归防线
+MISSING_TOOLS=""
+for TOOL in rustc cargo go java javac node npm pnpm python3 pip uv gh git dsh; do
+    if ! bash -lc "command -v ${TOOL}" >/dev/null 2>&1; then
+        MISSING_TOOLS="${MISSING_TOOLS} ${TOOL}"
+    fi
+done
+if [ -n "${MISSING_TOOLS}" ]; then
+    echo "  [WARN] Login shell 中仍无法直接调用:${MISSING_TOOLS}"
+    echo "         排查: bash -lc 'echo \$PATH'; cat /etc/profile.d/30-dev-env.sh"
+else
+    echo "  [OK] 登录 shell 自检通过: 所有语言工具均可直接调用 (cargo / go / java / node ...)"
+fi
 echo "=================================================================="
 
 # 6. 执行控制
