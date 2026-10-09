@@ -20,13 +20,21 @@ RUN rm -rf /opt/java/openjdk/lib/src.zip \
            /opt/java/openjdk/man \
            /opt/java/openjdk/jmods
 
+# 阶段 4: 提取官方 Go 1.27 工具链 (剔除文档、示例与标准库测试用例, GOPATH 走 /cache 持久化)
+FROM golang:1.27-bookworm AS go-source
+RUN rm -rf /usr/local/go/doc \
+           /usr/local/go/test \
+           /usr/local/go/api \
+           /usr/local/go/blog && \
+    find /usr/local/go -name "*_test.go" -delete 2>/dev/null || true
+
 # ------------------------------------------------------------------------------
 # 主阶段: 最终运行镜像
 # ------------------------------------------------------------------------------
 FROM debian:bookworm-slim
 
 LABEL maintainer="developer"
-LABEL description="Lean Multi-arch Remote Dev Container with Rust, Node, Python, Java 25, SSH, and DeepSeek Harness"
+LABEL description="Lean Multi-arch Remote Dev Container with Rust, Go 1.27, Node, Python, Java 25, SSH, and DeepSeek Harness"
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -70,15 +78,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV WORKSPACE=/root/workspace \
     CACHE_DIR=/cache \
     JAVA_HOME=/opt/java/openjdk \
+    GOROOT=/usr/local/go \
+    GOPATH=/cache/go \
+    GOMODCACHE=/cache/go/pkg/mod \
+    GOCACHE=/cache/go-build \
+    GOENV=/cache/go/env \
     GRADLE_USER_HOME=/cache/gradle \
     RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PIP_CACHE_DIR=/cache/pip \
     UV_CACHE_DIR=/cache/uv \
     PNPM_HOME=/cache/pnpm \
-    DSH_HOME=/root/.dsh
+    DSH_HOME=/root/.dsh \
+    BASH_ENV=/etc/profile.d/30-dev-env.sh
 
-ENV PATH=/root/workspace/.bin:$JAVA_HOME/bin:/usr/local/cargo/bin:/cache/cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH
+ENV PATH=/root/workspace/.bin:$JAVA_HOME/bin:$GOROOT/bin:$GOPATH/bin:/usr/local/cargo/bin:/cache/cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 
 # 3. [官方镜像拼接] 注入 Rust 运行时 (rustc, cargo, rustup)
 # 注: 权限已在阶段 1 完成赋权，直接 COPY 继承权限，彻底消除 OverlayFS 层的全量冗余复制 (~1.2GB+)
@@ -115,7 +129,10 @@ RUN uv python install 3.13 && \
 # 6. [官方镜像拼接] 注入 OpenJDK 25 (专用于 MC MOD 编译与运行)
 COPY --from=java-source /opt/java/openjdk /opt/java/openjdk
 
-# 7. 配置 DeepSeek Harness (dsh) 模版并注入自主升级工具
+# 7. [官方镜像拼接] 注入 Go 1.27 工具链 (GOROOT=/usr/local/go, 编译产物缓存走 /cache)
+COPY --from=go-source /usr/local/go /usr/local/go
+
+# 8. 配置 DeepSeek Harness (dsh) 模版并注入自主升级工具
 RUN mkdir -p /root/.dsh && \
     mkdir -p /etc/dsh.template && \
     cp -r /root/.dsh/. /etc/dsh.template/
@@ -125,7 +142,7 @@ RUN sed -i 's/\r$//' /usr/local/bin/updsh && \
     chmod +x /usr/local/bin/updsh && \
     ln -sf /usr/local/bin/updsh /usr/local/bin/update-dsh
 
-# 8. 创建工作区目录、持久化缓存目录结构及 SSH 目录
+# 9. 创建工作区目录、持久化缓存目录结构 (含 Go 缓存) 及 SSH 目录
 RUN mkdir -p /root/workspace \
     /cache/cargo/registry \
     /cache/cargo/git \
@@ -134,11 +151,53 @@ RUN mkdir -p /root/workspace \
     /cache/pip \
     /cache/uv \
     /cache/gradle \
+    /cache/go \
+    /cache/go/bin \
+    /cache/go/pkg/mod \
+    /cache/go-build \
     /var/run/sshd && \
     npm config set cache /cache/npm --global && \
     echo 'if [ "$PWD" = "/root" ] && [ -d "/root/workspace" ]; then cd /root/workspace; fi' >> /etc/bash.bashrc
 
-# 9. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
+# 10. 修复 SSH / VS Code Remote 终端中 "command not found" 问题
+#     根因 (已对照 Debian /etc/profile 与 OpenSSH session.c 源码确认):
+#       a) sshd 的 do_setup_env() 会重建一份全新环境, 完全不继承 Docker ENV;
+#       b) Debian 的 /etc/profile 又会在登录会话里把 PATH 强制重置为系统默认值。
+#       于是 ENV PATH 里追加的 /usr/local/cargo/bin (cargo/rustc)、
+#       /opt/java/openjdk/bin (java/javac)、/usr/local/go/bin (go) 全部丢失。
+#     修复: 通过 shell/PAM 启动文件重新注入, 覆盖全部会话类型
+#       - 登录 shell:        /etc/profile.d/30-dev-env.sh
+#       - 交互非登录 shell:  /etc/bash.bashrc、/root/.bashrc
+#       - 非交互 shell:      /etc/environment (Debian sshd 默认 pam_env.so,
+#                           且 PAM env 在 sshd 设置 PATH 之后合并, 优先级更高)
+#       - 非交互 bash 脚本:  BASH_ENV
+COPY dev-env.sh /etc/profile.d/30-dev-env.sh
+
+RUN sed -i 's/\r$//' /etc/profile.d/30-dev-env.sh && \
+    chmod 0644 /etc/profile.d/30-dev-env.sh && \
+    touch /etc/bash.bashrc /root/.bashrc && \
+    SOURCE_LINE='[ -r /etc/profile.d/30-dev-env.sh ] && . /etc/profile.d/30-dev-env.sh' && \
+    { grep -qF '/etc/profile.d/30-dev-env.sh' /etc/bash.bashrc || echo "${SOURCE_LINE}" >> /etc/bash.bashrc; } && \
+    { grep -qF '/etc/profile.d/30-dev-env.sh' /root/.bashrc || echo "${SOURCE_LINE}" >> /root/.bashrc; } && \
+    printf '%s\n' \
+      'JAVA_HOME=/opt/java/openjdk' \
+      'GOROOT=/usr/local/go' \
+      'GOPATH=/cache/go' \
+      'CARGO_HOME=/usr/local/cargo' \
+      'RUSTUP_HOME=/usr/local/rustup' \
+      'GRADLE_USER_HOME=/cache/gradle' \
+      'GOMODCACHE=/cache/go/pkg/mod' \
+      'GOCACHE=/cache/go-build' \
+      'GOENV=/cache/go/env' \
+      'PIP_CACHE_DIR=/cache/pip' \
+      'UV_CACHE_DIR=/cache/uv' \
+      'PNPM_HOME=/cache/pnpm' \
+      'DSH_HOME=/root/.dsh' \
+      'BASH_ENV=/etc/profile.d/30-dev-env.sh' \
+      'PATH=/root/workspace/.bin:/cache/go/bin:/usr/local/go/bin:/opt/java/openjdk/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+      > /etc/environment
+
+# 11. 导入 Entrypoint 容器入口脚本 (去除 CRLF 换行符并赋予可执行权限)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
